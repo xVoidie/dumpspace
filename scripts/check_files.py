@@ -144,6 +144,31 @@ def check_for_malicious_code(json_str):
   return False, ""
 
 
+def check_ntfs_compatibility(files):
+  forbidden = re.compile(r'[<>:"\\|?*\x00-\x1f]')
+  reserved_names = {'CON', 'PRN', 'AUX', 'NUL'} | {f'COM{i}' for i in range(1, 10)} | {f'LPT{i}' for i in range(1, 10)}
+
+  for file_name in files:
+    for seg in file_name.split('/')[2:]:
+      if not seg:
+        continue
+      bad = forbidden.search(seg)
+      if bad:
+        st = "Path " + file_name + " cannot be checked out on Windows. Segment '" + seg + "' contains the reserved character '" + bad.group(0) + "'. Folder and file names must not contain <>:\"\\|?* or control characters."
+        print(st)
+        return False, st
+      if seg.endswith(' ') or seg.endswith('.'):
+        st = "Path " + file_name + " cannot be checked out on Windows. Segment '" + seg + "' ends with a space or period."
+        print(st)
+        return False, st
+      stem = seg.split('.', 1)[0].upper()
+      if stem in reserved_names:
+        st = "Path " + file_name + " cannot be checked out on Windows. Segment '" + seg + "' uses the reserved device name '" + stem + "'."
+        print(st)
+        return False, st
+  return True, ""
+
+
 def basic_check(files):
   folder1 = 'Games'
   folder2_options = ['Unity', 'Unreal-Engine-3', 'Unreal-Engine-4', 'Unreal-Engine-5']
@@ -163,7 +188,11 @@ def basic_check(files):
     st = "A file is not in any supported engine (" + ', '.join(folder2_options) + ") folder. New engines are not supported by default."
     print(st)
     return False, st
-  
+
+  ok, msg = check_ntfs_compatibility(files)
+  if not ok:
+    return False, msg
+
   return True, ""
 
 # --- NEW FUNCTION TO COMMIT ALL FILES AT ONCE ---
